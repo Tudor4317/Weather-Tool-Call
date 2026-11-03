@@ -8,7 +8,7 @@ load_dotenv()
 
 client = OpenAI(
     base_url="http://localhost:11434/v1/",
-    api_key=os.getenv("API_KEY")
+    api_key="test"
 )
 
 messages = [{"role" : "user", "content" : "Whats the current weather in sibiu ? What is the current weather in new york ? "},
@@ -26,10 +26,11 @@ def get_current_weather(lat,lon):
         if response.status_code != 200:
             raise Exception(f"Endpoind responded with an error : {response.status_code}")
         else:
-            print(response.json())
+            data = response.json()
+            return f'Current weather of the city {data["name"]}: {data['weather'][0]['description']}  temperature : {data["main"]['temp']} other info : {data["wind"]}'
 
     except Exception as ex:
-        print(ex)
+        return f'There was an error {ex}'
 
 
 
@@ -67,25 +68,54 @@ response = client.chat.completions.create(
     tool_choice="auto"
 )
 
+
+
+
 response_message = response.choices[0].message
+
+
+print("\nFirst response",response_message)
 
 tool_calls = response_message.tool_calls
 
+messages.append(response_message)
 
 current_functions = {
     "get_current_weather" : get_current_weather,
 }
 
 
+
 for tool in tool_calls:
     function_name = current_functions[tool.function.name]
     function_args = json.loads(tool.function.arguments)
+    function_response = function_name(function_args["lat"],function_args["lon"])
+    tool_message = {
+
+    "tool_call_id" : tool.id,
+    "role" : "tool",
+    "name" : "get_current_weather",
+    "content" : function_response
+
+}
+    messages.append(tool_message)
 
 
-print(function_name)
 
-function_name(function_args["lat"],function_args["lon"])
 
+
+
+
+
+
+
+
+second_response = client.chat.completions.create(
+    model="qwen3:8b",
+    messages=messages
+)
+
+print("\nFinal Response",second_response.choices[0].message.content)
 
 
 
